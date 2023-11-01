@@ -1,0 +1,40 @@
+#!/bin/sh
+set -euo pipefail
+loadkmap</local/fr.bkmap
+[ -e /dev/sda2 ] || mount -t devtmpfs none /dev
+mkdir /dev/pts
+mount -t devpts none /dev/pts
+mkdir /dev/shm
+mount -t tmpfs none /dev/shm
+chmod 1777 /dev/shm
+mount -t tmpfs none /run
+mount -t proc none /proc
+mount -t sysfs none /sys
+echo bfq > /sys/block/sda/queue/scheduler
+mount -t efivarfs none /sys/firmware/efi/efivars
+(e2fsck -v -y /dev/sda2 2>&1) | tee /run/fsck.log
+mount / -oremount,rw,noatime,commit=60
+rm -fr /tmp/.X* /tmp/.ICE* /tmp/*
+mkdir -m 1777 /tmp/.X11-unix /tmp/.ICE-unix
+#mount /boot
+udevd -d
+#find /sys -name modalias -print0 |xargs -0 /sbin/modprobe -b -a
+udevadm trigger --action=add
+udevadm trigger --action=add -t subsystems
+udevadm settle
+chmod g+r /dev/tty5
+hostname plop
+ifconfig lo up
+ifconfig eth0 192.168.1.2 mtu 9194
+route add default gw 192.168.1.1
+#echo "nameserver 8.8.8.8" >/etc/resolv.conf
+#~al/CMD_QuectelModem &
+#echo "nameserver 2001:4860:4860::8888" >>/etc/resolv.conf
+
+cat > /etc/resolv.conf << EOF
+nameserver 1.1.1.1
+nameserver 1.0.0.1
+nameserver 2606:4700:4700::1111
+nameserver 2606:4700:4700::1001
+EOF
+
