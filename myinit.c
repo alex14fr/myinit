@@ -62,6 +62,7 @@ launch_sh:
 	free(constty);
 	free(constty2);
 	if(fork() == 0) {
+		fclose(f);
 		if(execl("/bin/sh", "sh", NULL) == -1) {
 			perror("execl /bin/sh");
 		}
@@ -72,6 +73,7 @@ launch_sh:
 pid_t launch_getty(char *ttyname) {
 	pid_t x=fork();
 	if(x==0) {
+		for(int i=0; i<10; i++)	close(i);
 		if(execl("/sbin/getty", "getty", "0", ttyname, NULL) == -1) {
 			perror("execl /sbin/getty");
 			exit(1);
@@ -124,13 +126,17 @@ int main(int argc, char **argv) {
 	signal(SIGQUIT, sigquit);
 
 	printf("INIT: running /etc/rc\n");
-	if(fork()==0) {
+	int rc_pid;
+	if((rc_pid=fork())==0) {
 		if(execl("/etc/rc", "rc", NULL) == -1) {
 			perror("execl /etc/rc");
 			exit(1);
 		}
 	} else {
-		pid_t ch=wait(&wstatus);
+		pid_t ch;
+		do {
+			ch=wait(&wstatus);
+		} while(ch != rc_pid);
 		ssize_t n=64;
 		printf("INIT: /etc/rc finished, status=%d\n", WEXITSTATUS(wstatus));
 		FILE *f=fopen("/etc/ttys", "r");
