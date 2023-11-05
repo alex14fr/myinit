@@ -61,8 +61,8 @@ void launch_emerg(FILE *f) {
 launch_sh:
 	free(constty);
 	free(constty2);
+	fclose(f);
 	if(fork() == 0) {
-		fclose(f);
 		if(execl("/bin/sh", "sh", NULL) == -1) {
 			perror("execl /bin/sh");
 		}
@@ -73,7 +73,7 @@ launch_sh:
 pid_t launch_getty(char *ttyname) {
 	pid_t x=fork();
 	if(x==0) {
-		for(int i=0; i<10; i++)	close(i);
+		for(int i=3; i<10; i++)	close(i);
 		if(execl("/sbin/getty", "getty", "0", ttyname, NULL) == -1) {
 			perror("execl /sbin/getty");
 			exit(1);
