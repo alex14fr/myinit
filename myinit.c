@@ -34,13 +34,13 @@ void prepare_shut(void) {
 void launch_emerg(FILE *f) {
 	int wstatus;
 	char *constty=NULL, *constty2=NULL;
-	ssize_t n=64;
+	size_t n=64;
 	if(!f) {
 		perror("open /etc/ttys");
 		goto launch_sh;
 	} 
-	constty=malloc(n);
-	constty2=malloc(n);
+	constty=malloc((size_t)n);
+	constty2=malloc((size_t)n);
 	n=getline(&constty2, &n, f);
 	if(n>0) {
 		constty2[n-1]=0;
@@ -48,6 +48,11 @@ void launch_emerg(FILE *f) {
 	} else {
 		goto launch_sh;
 	}
+	printf("Mounting /dev and /proc...\n");
+	if(fork()==0) { execl("/bin/mount", "mount", "-t", "devtmpfs", "none", "/dev", NULL); }
+	wait(&wstatus);
+	if(fork()==0) { execl("/bin/mount", "mount", "-t", "proc", "none", "/proc", NULL); }
+	wait(&wstatus);
 	printf("Using %s for emergency console. \n", constty);
 	int ff=open(constty, O_RDWR);
 	if(ff<0) {
@@ -82,6 +87,54 @@ pid_t launch_getty(char *ttyname) {
 	return(x);
 }
 
+char *ttys[32];
+
+void bringup(void) {
+	int wstatus;
+	pid_t gettypids[32];
+	int nttys=0;
+
+	printf("INIT: running /etc/rc\n");
+	int rc_pid;
+	if((rc_pid=fork())==0) {
+		if(execl("/etc/rc", "rc", NULL) == -1) {
+			perror("execl /etc/rc");
+			exit(1);
+		}
+	} else {
+		pid_t ch;
+		do {
+			ch=wait(&wstatus);
+		} while(ch != rc_pid);
+		size_t n=64;
+		printf("INIT: /etc/rc finished, status=%d\n", WEXITSTATUS(wstatus));
+		FILE *f=fopen("/etc/ttys", "r");
+		if(!f || !WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
+			launch_emerg(f);
+		}
+		if(f) fclose(f);
+		f=fopen("/etc/ttys", "r");
+		if(!f) {
+			perror("open /etc/ttys");
+			launch_emerg(NULL);
+		}
+		for(int i=0; i<32; i++) {
+			if((n=getline(&(ttys[i]), &n, f)) < 0) break;
+			ttys[i][n-1] = 0;
+			gettypids[i] = launch_getty(ttys[i]);
+			nttys++;
+		}
+		fclose(f);
+		while(1) {
+			pid_t ch=wait(&wstatus);
+			for(int i=0; i<nttys; i++)  {
+				if(ch == gettypids[i]) 
+					gettypids[i] = launch_getty(ttys[i]);
+			}
+		}
+	}
+}
+
 void sigchld(int s) {
 
 }
@@ -102,20 +155,16 @@ void sigreboot(int s) {
 }
 
 void sigquit(int s) {
-	while(1) {
-		prepare_shut();
-		FILE *f=fopen("/etc/ttys", "r");
-		launch_emerg(f);
-		fclose(f);
-	}
+	prepare_shut();
+	FILE *f=fopen("/etc/ttys", "r");
+	launch_emerg(f);
+	fclose(f);
+	prepare_shut();
+	syscall(SYS_reboot, 0xfee1dead, 0x28121969, 0x1234567);
 }
 
 
 int main(int argc, char **argv) {
-	int wstatus;
-	pid_t gettypids[4];
-	char *ttys[32];
-	int nttys=0;
 	setsid();
 	signal(SIGCHLD, sigchld);
 	signal(SIGUSR1, sighalt);
@@ -124,46 +173,8 @@ int main(int argc, char **argv) {
 	signal(SIGINT, sigreboot);
 	syscall(SYS_reboot, 0xfee1dead, 0x28121969, 0);
 	signal(SIGQUIT, sigquit);
-
-	printf("INIT: running /etc/rc\n");
-	int rc_pid;
-	if((rc_pid=fork())==0) {
-		if(execl("/etc/rc", "rc", NULL) == -1) {
-			perror("execl /etc/rc");
-			exit(1);
-		}
-	} else {
-		pid_t ch;
-		do {
-			ch=wait(&wstatus);
-		} while(ch != rc_pid);
-		ssize_t n=64;
-		printf("INIT: /etc/rc finished, status=%d\n", WEXITSTATUS(wstatus));
-		FILE *f=fopen("/etc/ttys", "r");
-		if(!f || !WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
-			launch_emerg(f);
-		}
-		if(f) fclose(f);
-		f=fopen("/etc/ttys", "r");
-		if(!f) {
-			perror("open /etc/ttys");
-			launch_emerg(NULL);
-		}
-		for(int i=0; i<32; i++) {
-			ttys[i] = malloc(n);
-			if((n=getline(&(ttys[i]), &n, f)) < 0) break;
-			ttys[i][n-1] = 0;
-			gettypids[i] = launch_getty(ttys[i]);
-			nttys++;
-		}
-		fclose(f);
-		while(1) {
-			pid_t ch=wait(&wstatus);
-			for(int i=0; i<nttys; i++)  {
-				if(ch == gettypids[i]) 
-					gettypids[i] = launch_getty(ttys[i]);
-			}
-		}
-	}
+	for(int i=0;i<32;i++)
+		ttys[i]=malloc(64);
+	bringup();
 }
 
