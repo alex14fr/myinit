@@ -5,6 +5,9 @@
 #include <sys/syscall.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <string.h>
+
+char *ttys[32];
 
 void prepare_shut(void) {
 	struct sigaction sa;
@@ -87,7 +90,6 @@ pid_t launch_getty(char *ttyname) {
 	return(x);
 }
 
-char *ttys[32];
 
 void bringup(void) {
 	int wstatus;
@@ -106,7 +108,8 @@ void bringup(void) {
 		do {
 			ch=wait(&wstatus);
 		} while(ch != rc_pid);
-		size_t n=64;
+		ssize_t n=64;
+		size_t nn=64;
 		printf("INIT: /etc/rc finished, status=%d\n", WEXITSTATUS(wstatus));
 		FILE *f=fopen("/etc/ttys", "r");
 		if(!f || !WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
@@ -119,16 +122,19 @@ void bringup(void) {
 			launch_emerg(NULL);
 		}
 		for(int i=0; i<32; i++) {
-			if((n=getline(&(ttys[i]), &n, f)) < 0) break;
+			n=64;
+			if((n=getline(&(ttys[i]), &nn, f)) < 0) break;
 			ttys[i][n-1] = 0;
-			gettypids[i] = launch_getty(ttys[i]);
-			nttys++;
+			if(n>2) {
+				gettypids[i] = launch_getty(ttys[i]);
+				nttys++;
+			} else gettypids[i]=-1;
 		}
 		fclose(f);
 		while(1) {
 			pid_t ch=wait(&wstatus);
 			for(int i=0; i<nttys; i++)  {
-				if(ch == gettypids[i]) 
+				if(strlen(ttys[i])>0 && ch == gettypids[i]) 
 					gettypids[i] = launch_getty(ttys[i]);
 			}
 		}
