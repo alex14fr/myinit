@@ -26,9 +26,6 @@ void prepare_shut(void) {
 	sa.sa_handler=SIG_IGN;
 	sigaction(SIGCHLD, &sa, NULL);
 	int wstatus;
-	printf("Syncing...\n");
-	sync();
-	sleep(1);
 	printf("Sending TERM signal to all processes...\n");
 	kill(-1, SIGTERM);
 	sleep(1);
@@ -82,7 +79,8 @@ launch_sh:
 		}
 	}
 	wait(&wstatus);
-	bringup();
+	prepare_shut();
+	syscall(SYS_reboot, 0xfee1dead, 0x28121969, 0x1234567);
 }
 
 pid_t launch_getty(char *ttyname) {
@@ -110,10 +108,10 @@ void bringup(void) {
 			exit(1);
 		}
 	} else {
-		pid_t ch;
-		do {
-			ch=wait(&wstatus);
-		} while(ch != rc_pid);
+		pid_t ch=waitpid(rc_pid, &wstatus, 0);
+		if(ch==-1) {
+			perror("waitpid");
+		}
 		printf("INIT: /etc/rc finished, status=%d\n", WEXITSTATUS(wstatus));
 		int f=open("/etc/ttys", O_RDONLY);
 		if(!f || !WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
