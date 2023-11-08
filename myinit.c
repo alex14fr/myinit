@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -6,8 +5,21 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
+#include <stdio.h>
 
-char *ttys[32];
+extern void bringup(void);
+char ttys[32][64];
+
+int myrdline(int fd, char *s, int maxlen) {
+	for(int i=0; i<maxlen; i++) {
+		if(read(fd, s+i, 1)<0 || s[i]=='\n') {
+			s[i]=0;
+			return(i);
+		} 
+	}
+	s[maxlen]=0;
+	return(maxlen);
+}
 
 void prepare_shut(void) {
 	struct sigaction sa;
@@ -19,7 +31,7 @@ void prepare_shut(void) {
 	sleep(1);
 	printf("Sending TERM signal to all processes...\n");
 	kill(-1, SIGTERM);
-	sleep(3);
+	sleep(1);
 	printf("Sending KILL signal to all processes...\n");
 	kill(-1, SIGKILL);
 	sleep(1);
@@ -31,51 +43,46 @@ void prepare_shut(void) {
 	wait(&wstatus);
 	printf("Syncing...\n");
 	sync();
-	sleep(2);
+	sleep(1);
 }
 
-void launch_emerg(FILE *f) {
+
+void launch_emerg(void) {
 	int wstatus;
-	char *constty=NULL, *constty2=NULL;
-	size_t n=64;
+	int f=open("/etc/ttys", O_RDONLY);
 	if(!f) {
 		perror("open /etc/ttys");
 		goto launch_sh;
 	} 
-	constty=malloc((size_t)n);
-	constty2=malloc((size_t)n);
-	n=getline(&constty2, &n, f);
-	if(n>0) {
-		constty2[n-1]=0;
-		snprintf(constty, 64, "/dev/%s", constty2);
-	} else {
-		goto launch_sh;
-	}
+	char constty[64];
+	memcpy(constty, "/dev/", 5);
+	int n=myrdline(f, constty+5, 50);
+	close(f);
 	printf("Mounting /dev and /proc...\n");
 	if(fork()==0) { execl("/bin/mount", "mount", "-t", "devtmpfs", "none", "/dev", NULL); }
 	wait(&wstatus);
 	if(fork()==0) { execl("/bin/mount", "mount", "-t", "proc", "none", "/proc", NULL); }
 	wait(&wstatus);
-	printf("Using %s for emergency console. \n", constty);
-	int ff=open(constty, O_RDWR);
-	if(ff<0) {
-		perror("open emergency console");
-		goto launch_sh;
-	} 
-	dup2(ff, 0);
-	dup2(ff, 1);
-	dup2(ff, 2);
-	close(ff);
+	if(n>0) {
+		printf("Using %s for emergency console. \n", constty);
+		int ff=open(constty, O_RDWR);
+		if(ff<0) {
+			perror("open emergency console");
+			goto launch_sh;
+		} 
+		dup2(ff, 0);
+		dup2(ff, 1);
+		dup2(ff, 2);
+		close(ff);
+	}
 launch_sh:
-	free(constty);
-	free(constty2);
-	fclose(f);
 	if(fork() == 0) {
 		if(execl("/bin/sh", "sh", NULL) == -1) {
 			perror("execl /bin/sh");
 		}
 	}
 	wait(&wstatus);
+	bringup();
 }
 
 pid_t launch_getty(char *ttyname) {
@@ -89,7 +96,6 @@ pid_t launch_getty(char *ttyname) {
 	}
 	return(x);
 }
-
 
 void bringup(void) {
 	int wstatus;
@@ -108,29 +114,22 @@ void bringup(void) {
 		do {
 			ch=wait(&wstatus);
 		} while(ch != rc_pid);
-		ssize_t n=64;
-		size_t nn=64;
 		printf("INIT: /etc/rc finished, status=%d\n", WEXITSTATUS(wstatus));
-		FILE *f=fopen("/etc/ttys", "r");
+		int f=open("/etc/ttys", O_RDONLY);
 		if(!f || !WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
-			launch_emerg(f);
-		}
-		if(f) fclose(f);
-		f=fopen("/etc/ttys", "r");
-		if(!f) {
-			perror("open /etc/ttys");
-			launch_emerg(NULL);
+			if(f) close(f);
+			launch_emerg();
 		}
 		for(int i=0; i<32; i++) {
-			n=64;
-			if((n=getline(&(ttys[i]), &nn, f)) < 0) break;
-			ttys[i][n-1] = 0;
-			if(n>2) {
+			int n=myrdline(f, ttys[i], 64);
+			if(n>0) {
 				gettypids[i] = launch_getty(ttys[i]);
 				nttys++;
-			} else gettypids[i]=-1;
+			} else {
+				break;
+			}
 		}
-		fclose(f);
+		close(f);
 		while(1) {
 			pid_t ch=wait(&wstatus);
 			for(int i=0; i<nttys; i++)  {
@@ -162,9 +161,7 @@ void sigreboot(int s) {
 
 void sigquit(int s) {
 	prepare_shut();
-	FILE *f=fopen("/etc/ttys", "r");
-	launch_emerg(f);
-	fclose(f);
+	launch_emerg();
 	prepare_shut();
 	syscall(SYS_reboot, 0xfee1dead, 0x28121969, 0x1234567);
 }
@@ -179,8 +176,6 @@ int main(int argc, char **argv) {
 	signal(SIGINT, sigreboot);
 	syscall(SYS_reboot, 0xfee1dead, 0x28121969, 0);
 	signal(SIGQUIT, sigquit);
-	for(int i=0;i<32;i++)
-		ttys[i]=malloc(64);
 	bringup();
 }
 
