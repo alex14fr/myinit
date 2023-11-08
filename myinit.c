@@ -26,6 +26,9 @@ void prepare_shut(void) {
 	sa.sa_handler=SIG_IGN;
 	sigaction(SIGCHLD, &sa, NULL);
 	int wstatus;
+	printf("\nSyncing...\n");
+	sync();
+	sleep(1);
 	printf("Sending TERM signal to all processes...\n");
 	kill(-1, SIGTERM);
 	sleep(1);
