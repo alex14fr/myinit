@@ -12,7 +12,7 @@ char ttys[32][64];
 
 int myrdline(int fd, char *s, int maxlen) {
 	for(int i=0; i<maxlen; i++) {
-		if(read(fd, s+i, 1)<0 || s[i]=='\n') {
+		if(read(fd, s+i, 1)!=1 || s[i]=='\n') {
 			s[i]=0;
 			return(i);
 		} 
@@ -65,6 +65,7 @@ void launch_emerg(void) {
 	wait(&wstatus);
 	if(n>0) {
 		printf("Using %s for emergency console. \n", constty);
+		setsid();
 		int ff=open(constty, O_RDWR);
 		if(ff<0) {
 			perror("open emergency console");
@@ -169,7 +170,6 @@ void sigquit(int s) {
 
 
 int main(int argc, char **argv) {
-	setsid();
 	signal(SIGCHLD, sigchld);
 	signal(SIGUSR1, sighalt);
 	signal(SIGUSR2, sigpoweroff);
