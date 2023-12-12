@@ -7,13 +7,7 @@
 #include <sys/stat.h>
 #include <linux/vt.h>
 
-#define UID 1000
-#define GID 1000
-#define NSGID  6
-#define TTY "/dev/tty5"
-#define CMD "/usr/bin/startx"
-#define USER "al"
-#define GRPS 5,6,18,20,23,27
+#include "launchix_config.h"
 
 void sigchld(int signum) {
 	int wstatus;
@@ -21,11 +15,6 @@ void sigchld(int signum) {
 }
 
 int main(int argc, char **argv) {
-	/*
-	int fdd=open("/dev/console",O_RDWR);
-	int vtnum=5;
-	ioctl(fdd, VT_ACTIVATE, vtnum);
-	*/
 	for(int i=0; i<10; i++) close(i);
 	setsid();
 	int fd=open(TTY, O_RDWR);
@@ -38,12 +27,12 @@ int main(int argc, char **argv) {
 	chdir("/home/" USER);
 	signal(SIGCHLD, sigchld);
 	gid_t sgid[]={GRPS};
-	char *envp[]={"HOME=/home/" USER,"USER=" USER,"TERM=linux",NULL};
+	char *envp[]={"PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin","HOME=/home/" USER,"USER=" USER,"TERM=linux",NULL};
 	setgroups(NSGID, sgid);
 	setregid(GID, GID);
 	if(setreuid(UID, UID)<0) { perror("setreuid"); return(1); }
 	int vtnum=5;
-	ioctl(fd, VT_ACTIVATE, vtnum);
+	//ioctl(fd, VT_ACTIVATE, vtnum);
 	pid_t cl;
 	if((cl=fork())==0) {
 		if(execle(CMD, CMD, NULL, envp)<0) {
