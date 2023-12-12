@@ -16,7 +16,8 @@
 #define GRPS 5,6,18,20,23,27
 
 void sigchld(int signum) {
-
+	int wstatus;
+	wait(&wstatus);
 }
 
 int main(int argc, char **argv) {
