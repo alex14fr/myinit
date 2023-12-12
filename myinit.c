@@ -143,7 +143,8 @@ void bringup(void) {
 }
 
 void sigchld(int s) {
-
+	int wstatus;
+	wait(&wstatus);
 }
 
 void sighalt(int s) {
