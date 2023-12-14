@@ -144,7 +144,7 @@ void bringup(void) {
 
 void sigchld(int s) {
 	int wstatus;
-	wait(&wstatus);
+	while(waitpid(-1, &wstatus, WNOHANG) > 0);
 }
 
 void sighalt(int s) {

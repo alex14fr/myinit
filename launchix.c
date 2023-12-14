@@ -11,7 +11,7 @@
 
 void sigchld(int signum) {
 	int wstatus;
-	wait(&wstatus);
+	while(waitpid(-1, &wstatus, WNOHANG) > 0);
 }
 
 int main(int argc, char **argv) {
