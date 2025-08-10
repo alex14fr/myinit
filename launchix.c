@@ -10,12 +10,12 @@
 #include "launchix_config.h"
 
 void sigchld(int signum) {
-	wait(NULL);
+	while(waitpid(-1, NULL, WNOHANG)>0);
 }
 
 int main(int argc, char **argv) {
 	pid_t cl;
-	if((cl=fork())==0) { waitpid(cl, NULL, 0); return(0); }
+	if((cl=fork()) > 0) { while(waitpid(cl, NULL, 0)<0); return(0); }
 	setsid();
 	int fd=open(TTY, O_RDWR);
 	if(fd<0) { perror("open"); return(1); }
@@ -42,9 +42,7 @@ int main(int argc, char **argv) {
 		while(1) {
 			pid_t clw;
 			clw=wait(NULL);
-			printf("wait() -> %d %d\n", clw, cl);
-			if(clw==cl || clw<0)
-				return(0);
+			if(clw==cl) return(0);
 		}
 	}
 }
