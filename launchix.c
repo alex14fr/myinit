@@ -10,12 +10,12 @@
 #include "launchix_config.h"
 
 void sigchld(int signum) {
-	int wstatus;
-	while(waitpid(-1, &wstatus, WNOHANG) > 0);
+	wait(NULL);
 }
 
 int main(int argc, char **argv) {
-	for(int i=0; i<10; i++) close(i);
+	pid_t cl;
+	if((cl=fork())==0) { waitpid(cl, NULL, 0); return(0); }
 	setsid();
 	int fd=open(TTY, O_RDWR);
 	if(fd<0) { perror("open"); return(1); }
@@ -27,21 +27,25 @@ int main(int argc, char **argv) {
 	chdir("/home/" USER);
 	signal(SIGCHLD, sigchld);
 	gid_t sgid[]={GRPS};
-	char *envp[]={"PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin","HOME=/home/" USER,"USER=" USER,"TERM=linux",NULL};
+	char *envp[]={"PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin","HOME=/home/" USER,"USER=" USER,"TERM=linux","XDG_RUNTIME_DIR=/run/xdgruntime",NULL};
 	setgroups(NSGID, sgid);
 	setregid(GID, GID);
 	if(setreuid(UID, UID)<0) { perror("setreuid"); return(1); }
 	int vtnum=5;
 	//ioctl(fd, VT_ACTIVATE, vtnum);
-	pid_t cl;
 	if((cl=fork())==0) {
-		if(execle(CMD, CMD, NULL, envp)<0) {
-			perror("execle");
+		if(execve(argv[1], argv+1, envp)<0) {
+			perror("execve");
 			return(1);
 		}
 	} else {
-		int wstatus;
-		while(1) if(cl==wait(&wstatus)) return(0);
+		while(1) {
+			pid_t clw;
+			clw=wait(NULL);
+			printf("wait() -> %d %d\n", clw, cl);
+			if(clw==cl || clw<0)
+				return(0);
+		}
 	}
 }
 
