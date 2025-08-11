@@ -15,7 +15,14 @@ int main(int argc, char **argv) {
 	if(chmod(TTY, 0600)<0) { perror("chmod"); return(1); }
 	chdir("/home/" USER);
 	gid_t sgid[]={GRPS};
-	char *envp[]={"PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin","HOME=/home/" USER,"USER=" USER,"TERM=linux","XDG_RUNTIME_DIR=/run/xdgruntime",NULL};
+	char *envp[]={"PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin",
+						"HOME=/home/" USER,
+						"USER=" USER,
+						"TERM=linux",
+						"XDG_RUNTIME_DIR=/run/xdgruntime",
+						"LD_LIBRARY_PATH=/opt/mesa/lib",
+						"LIBVA_DRIVERS_PATH=/opt/mesa/lib/dri",
+						NULL};
 	setgroups(NSGID, sgid);
 	setregid(GID, GID);
 	if(setreuid(UID, UID)<0) { perror("setreuid"); return(1); }
