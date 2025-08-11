@@ -11,6 +11,9 @@
 
 int main(int argc, char **argv) {
 	pid_t cl;
+	if((cl=fork()) > 0) { while(waitpid(cl, NULL, 0)<0); return(0); }
+	setsid();
+
 	if(chown(TTY, UID, GID)<0) { perror("chown"); return(1); }
 	if(chmod(TTY, 0600)<0) { perror("chmod"); return(1); }
 	chdir("/home/" USER);
