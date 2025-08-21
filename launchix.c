@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
 						"XDG_RUNTIME_DIR=/run/xdgruntime",
 						"LD_LIBRARY_PATH=/opt/mesa/lib",
 						"LIBVA_DRIVERS_PATH=/opt/mesa/lib/dri",
+						"VK_DRIVER_FILES=/opt/mesa/share/vulkan/icd.d/",
 						NULL};
 	setgroups(NSGID, sgid);
 	setregid(GID, GID);
