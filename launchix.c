@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
 						"TERM=linux",
 						"XDG_RUNTIME_DIR=/run/xdgruntime",
 						"LD_LIBRARY_PATH=/opt/mesa/lib",
+						"LD_PRELOAD=/usr/local/lib/libmimalloc.so",
 						"LIBVA_DRIVERS_PATH=/opt/mesa/lib/dri",
 						NULL};
 	setgroups(NSGID, sgid);
