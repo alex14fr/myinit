@@ -27,6 +27,7 @@ int main(int argc, char **argv) {
 						"LD_PRELOAD=/home/al/libmemcmp.so:/usr/local/lib/libmimalloc.so",
 						"LIBVA_DRIVERS_PATH=/opt/mesa/lib/dri",
 						"VK_DRIVER_FILES=/opt/mesa/share/vulkan/icd.d/",
+						"NO_AT_BRIDGE=1",
 						NULL};
 	setgroups(NSGID, sgid);
 	setregid(GID, GID);
